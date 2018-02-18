@@ -1,0 +1,13 @@
+beautifulsoup4==4.6.0
+bs4==0.0.1
+certifi==2018.1.18
+chardet==3.0.4
+gevent==1.2.2
+greenlet==0.4.13
+grequests==0.3.0
+idna==2.6
+lxml==4.1.1
+psycopg2==2.7.4
+requests==2.18.4
+SQLAlchemy==1.2.3
+urllib3==1.22
