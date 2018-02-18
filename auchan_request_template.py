@@ -1,0 +1,23 @@
+JSON_template = {"meta": {}, "request": [{"args": {"store_id": "48246401",
+                                                   "slugs": ["beer"],
+                                                   "facets": [],
+                                                   "sort": "catalog",
+                                                   "extended": True},
+                                          "v": "0.1", "type": "store.products",
+                                          "id": "catalog", "offset": 2,
+                                          "join": [{"apply_as": "facets_base",
+                                                    "on": ["slug", "slug"],
+                                                    "request": {"v": "0.1",
+                                                                "type": "store.facets",
+                                                                "args": {
+                                                                    "store_id": "$request.[-2].args.store_id",
+                                                                    "slug": "$request.[-2].args.slugs|first",
+                                                                    "basic_facets": []}}},
+                                                   {"apply_as": "category_tree",
+                                                    "on": ["slug",
+                                                           "requested_slug"],
+                                                    "request": {"v": "0.1",
+                                                                "type": "store.department_tree",
+                                                                "args": {
+                                                                    "store_id": "$request.[-2].args.store_id",
+                                                                    "slug": "$request.[-2].args.slugs|first"}}}]}]}
