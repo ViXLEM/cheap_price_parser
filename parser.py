@@ -7,6 +7,7 @@ from bs4 import BeautifulSoup
 from auchan_request_template import JSON_template
 from models import Session
 from models import Product
+from categories_url import novus_list, mm_dict
 
 
 class Supermarket():
@@ -16,7 +17,7 @@ class Supermarket():
         start_time = time.time()
         self.goods_dict = self.get_goods_dict()
         end_time = time.time()
-        self.metadata['download_time'] = end_time-start_time
+        self.metadata['download_time'] = round(end_time-start_time, 2)
         self.metadata['products_count'] = len(self.goods_dict)
         self.supermarket_orm = orm
         self.supermarket_name = name
@@ -40,12 +41,13 @@ class Supermarket():
             self.new_goods_barcode.append(barcode)
             product = self.supermarket_orm(barcode=barcode,
                                            name=self.goods_dict[barcode]['name'],
-                                           price=self.goods_dict[barcode]['price'])
+                                           price=self.goods_dict[barcode]['price'],
+                                           category=self.goods_dict[barcode]['category'])
             session.add(product)
         session.commit()
         session.close()
         end_time = time.time()
-        self.metadata['save_to_db_time'] = end_time-start_time
+        self.metadata['save_to_db_time'] = round(end_time-start_time, 2)
         self.metadata['new_products_count'] = len(self.new_goods_barcode)
 
     def merge_with_main_db(self):
@@ -64,7 +66,7 @@ class Supermarket():
                 session.add(new_product)
             session.commit()
         end_time = time.time()
-        self.metadata['merge_time'] = end_time-start_time
+        self.metadata['merge_time'] = round(end_time-start_time, 2)
 
     def get_metadata(self):
         print(self.metadata)
@@ -72,7 +74,7 @@ class Supermarket():
 
 class MegaMarket(Supermarket):
 
-    def parse_data(self, html_code):
+    def parse_data(self, html_code, category):
         """Parse HTML of category and return dictionary of goods from MegaMarket."""
 
         soup = BeautifulSoup(html_code, 'lxml')
@@ -84,15 +86,13 @@ class MegaMarket(Supermarket):
             name = product_code_and_name.text
             price = product.find('div', class_='price').text.replace(
                 ' ', '')[1:]  # del white spaces and '/n'
-            data_dict.update({product_code: {'name': name, 'price': price}})
+            data_dict.update({product_code: {'name': name, 'price': price, 'category': category}})
         return data_dict
 
     def get_goods_dict(self):
         """Request categories url and return dictionary of goods from MegaMarket."""
 
-        list_catalog_url = [
-            'https://megamarket.ua/ua/catalogue/category/1090?show=48000']
-        # 'https://megamarket.ua/ua/catalogue/category/1050?show=48000' gorilka
+        list_catalog_url = []
         requests_gen = (grequests.get(url) for url in list_catalog_url)
         response_list = grequests.map(requests_gen)
         data = {}
@@ -131,7 +131,7 @@ class Auchan(Supermarket):
 
 
 class Novus(Supermarket):
-    def parse_data(self, html_code):
+    def parse_data(self, html_code, category):
         """Parse HTML of category and return dictionary of goods from Novus."""
 
         soup = BeautifulSoup(html_code, 'lxml')
@@ -140,7 +140,7 @@ class Novus(Supermarket):
         for product in list_products_html_code:
             name_and_url = product.find('a', class_='one-product-link')
             name = name_and_url['title']
-            # url = name_and_url['href'] #TODO: url parse
+            # url = 'https://novus.zakaz.ua/uk/{}'.format(name_and_url['href'])
             barcode = name_and_url['href'].split('/')[0][1:]
             if barcode[:4] == 'ovus':  # this line del supermarket's beer on tap
                 continue
@@ -149,19 +149,17 @@ class Novus(Supermarket):
             price_coin = prc.find('span', class_='kopeiki').text
             full_price = '{}.{}'.format(price_grn, price_coin)
             data_dict.update(
-                {barcode: {'name': name, 'price': full_price}})
+                {barcode: {'name': name, 'price': full_price, 'category': category}})
         return data_dict
 
     def get_goods_dict(self):
         """Request categories url and return dictionary of goods from Novus."""
 
-        list_url = ['https://novus.zakaz.ua/uk/beer/?&page={}'.format(x) for x
-                    in range(1, 10)]
-        requests_gen = (grequests.get(url) for url in list_url)
-        response_list = grequests.map(requests_gen)
-        print(len(response_list))
         data = {}
-        for response in response_list:
-            catalog_data = self.parse_data(response.text)
-            data.update(catalog_data)
+        for category_name in novus_list.keys():
+            requests_gen = (grequests.get(url) for url in novus_list[category_name])
+            response_list = grequests.map(requests_gen)
+            for response in response_list:
+                catalog_data = self.parse_data(response.text, category_name)
+                data.update(catalog_data)
         return data
