@@ -17,10 +17,10 @@ def main():
     # auchan.merge_with_main_db()
     # auchan.get_metadata()
 
-    # novus = Novus(NovusProduct, 'novus')
-    # novus.save_to_db()
-    # novus.merge_with_main_db()
-    # novus.get_metadata()
+    novus = Novus(NovusProduct, 'novus')
+    novus.save_to_db()
+    novus.merge_with_main_db()
+    novus.get_metadata()
 
     second = time.time()
     print(round(second-first, 3))

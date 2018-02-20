@@ -7,7 +7,7 @@ from bs4 import BeautifulSoup
 from auchan_request_template import JSON_template
 from models import Session
 from models import Product
-from categories_url import novus_list, mm_dict
+from categories_url import novus_dict, mm_dict
 
 
 class Supermarket():
@@ -92,12 +92,14 @@ class MegaMarket(Supermarket):
     def get_goods_dict(self):
         """Request categories url and return dictionary of goods from MegaMarket."""
 
-        list_catalog_url = []
-        requests_gen = (grequests.get(url) for url in list_catalog_url)
+        urls_list = mm_dict.values()
+        requests_gen = (grequests.get(url) for url in urls_list)
         response_list = grequests.map(requests_gen)
         data = {}
-        for response in response_list:
-            catalog_data = self.parse_data(response.text)
+        for x in range(len(response_list)):
+            html_code = response_list[x].text
+            category = list(mm_dict)[x]
+            catalog_data = self.parse_data(html_code, category)
             data.update(catalog_data)
         return data
 
@@ -156,8 +158,8 @@ class Novus(Supermarket):
         """Request categories url and return dictionary of goods from Novus."""
 
         data = {}
-        for category_name in novus_list.keys():
-            requests_gen = (grequests.get(url) for url in novus_list[category_name])
+        for category_name in novus_dict:
+            requests_gen = (grequests.get(url) for url in novus_dict[category_name])
             response_list = grequests.map(requests_gen)
             for response in response_list:
                 catalog_data = self.parse_data(response.text, category_name)
