@@ -1,13 +1,11 @@
 import grequests
-import requests
 import json
 import time
 
 from bs4 import BeautifulSoup
-from auchan_request_template import JSON_template
 from models import Session
 from models import Product
-from categories_url import novus_dict, mm_dict
+from categories_url import novus_dict, mm_dict, auchan_dict
 
 
 class Supermarket():
@@ -106,7 +104,7 @@ class MegaMarket(Supermarket):
 
 class Auchan(Supermarket):
 
-    def parse_data(self, json_data):
+    def parse_data(self, json_data, category):
         """Parse JSON of category and return dictionary of goods from Auchan."""
 
         data_dict = {}
@@ -115,8 +113,8 @@ class Auchan(Supermarket):
             name = product['name']
             price = product['price'] / 100
             barcode = product['ean'][1:]
-            url = 'https://auchan.zakaz.ua/uk/0{}/'.format(barcode)
-            data_dict.update({barcode: {'name': name, 'price': price}})
+            # url = 'https://auchan.zakaz.ua/uk/0{}/'.format(barcode)
+            data_dict.update({barcode: {'name': name, 'price': price, 'category': category}})
         return data_dict
 
     def get_goods_dict(self):
@@ -124,11 +122,12 @@ class Auchan(Supermarket):
 
         json_api_url = 'https://auchan.zakaz.ua/api/query.json'
         data = {}
-        for page_number in range(1, 5):
-            JSON_template['request'][0]['offset'] = page_number
-            json_response = requests.post(json_api_url, json=JSON_template)
-            catalog_data = self.parse_data(json_response.text)
-            data.update(catalog_data)
+        for category in auchan_dict:
+            requests_gen = (grequests.post(json_api_url, json=json_data) for json_data in auchan_dict[category])
+            response_list = grequests.map(requests_gen)
+            for json_response in response_list:
+                catalog_data = self.parse_data(json_response.text, category)
+                data.update(catalog_data)
         return data
 
 

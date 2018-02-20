@@ -12,10 +12,10 @@ def main():
     mm.merge_with_main_db()
     mm.get_metadata()
 
-    # auchan = Auchan(AuchanProduct, 'auchan')
-    # auchan.save_to_db()
-    # auchan.merge_with_main_db()
-    # auchan.get_metadata()
+    auchan = Auchan(AuchanProduct, 'auchan')
+    auchan.save_to_db()
+    auchan.merge_with_main_db()
+    auchan.get_metadata()
 
     novus = Novus(NovusProduct, 'novus')
     novus.save_to_db()
