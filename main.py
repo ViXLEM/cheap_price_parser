@@ -1,8 +1,10 @@
 import time
 import os
+import requests
 
 from flask import Flask
 from parser import MegaMarket, Auchan, Novus
+from config import BOT_API_URL
 
 app = Flask(__name__)
 
@@ -14,27 +16,29 @@ def index():
 
 @app.route("/update")
 def data_update():
-    main()
-    return "Succsess! was updated"
-
-
-def main():
     first = time.time()
 
     auchan = Auchan()
-    auchan.update()
-    print(auchan.get_metadata())
-
     mm = MegaMarket()
-    mm.update()
-    print(mm.get_metadata())
-
     novus = Novus()
+
+    auchan.update()
+    send_to_bot(auchan.get_metadata())
+
+    mm.update()
+    send_to_bot(mm.get_metadata())
+
     novus.update()
-    print(novus.get_metadata())
+    send_to_bot(novus.get_metadata())
 
     second = time.time()
-    print(round(second-first, 3))
+    send_to_bot(round(second - first, 3))
+    return "Succsess! was updated"
+
+
+def send_to_bot(data_dict):
+    print(data_dict)
+    requests.post(BOT_API_URL, data=data_dict)
 
 
 if __name__ == '__main__':
