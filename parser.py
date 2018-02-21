@@ -1,25 +1,24 @@
 import grequests
 import json
 import time
+import requests
+import math
+import copy
 
 from bs4 import BeautifulSoup
 from models import Session
-from models import Product
-from categories_url import novus_dict, mm_dict, auchan_dict
+from models import AuchanProduct, NovusProduct, MMProduct, Product
+from auchan_request_template import JSON_template
 
 
 class Supermarket():
     def __init__(self, orm, name):
         self.metadata = {'products_count': '', 'new_products_count': '',
                          'download_time': '', 'save_to_db_time': '', 'merge_time': ''}
-        start_time = time.time()
-        self.goods_dict = self.get_goods_dict()
-        end_time = time.time()
-        self.metadata['download_time'] = round(end_time-start_time, 2)
-        self.metadata['products_count'] = len(self.goods_dict)
         self.supermarket_orm = orm
         self.supermarket_name = name
         self.new_goods_barcode = []
+        self.generate_url()
 
     def save_to_db(self):
         start_time = time.time()
@@ -66,43 +65,26 @@ class Supermarket():
         end_time = time.time()
         self.metadata['merge_time'] = round(end_time-start_time, 2)
 
+    def update(self):
+        start_time = time.time()
+        self.goods_dict = self.get_goods_dict()
+        end_time = time.time()
+        self.metadata['download_time'] = round(end_time-start_time, 2)
+        self.metadata['products_count'] = len(self.goods_dict)
+        self.save_to_db()
+        self.merge_with_main_db()
+
     def get_metadata(self):
         print(self.metadata)
 
 
-class MegaMarket(Supermarket):
-
-    def parse_data(self, html_code, category):
-        """Parse HTML of category and return dictionary of goods from MegaMarket."""
-
-        soup = BeautifulSoup(html_code, 'lxml')
-        list_products_html_code = soup.find_all('div', class_='product')
-        data_dict = {}
-        for product in list_products_html_code:
-            product_code_and_name = product.find_all('a')[1]
-            product_code = product_code_and_name['href'].split('/')[3]
-            name = product_code_and_name.text
-            price = product.find('div', class_='price').text.replace(
-                ' ', '')[1:]  # del white spaces and '/n'
-            data_dict.update({product_code: {'name': name, 'price': price, 'category': category}})
-        return data_dict
-
-    def get_goods_dict(self):
-        """Request categories url and return dictionary of goods from MegaMarket."""
-
-        urls_list = mm_dict.values()
-        requests_gen = (grequests.get(url) for url in urls_list)
-        response_list = grequests.map(requests_gen)
-        data = {}
-        for x in range(len(response_list)):
-            html_code = response_list[x].text
-            category = list(mm_dict)[x]
-            catalog_data = self.parse_data(html_code, category)
-            data.update(catalog_data)
-        return data
-
-
 class Auchan(Supermarket):
+    def __init__(self):
+        self.auchan_categories = {'beer': 'beer', 'vodka': 'vodka', 'wine': 'wine',
+                                  'champagne': 'champagne-sparkling-wine',
+                                  'cognac': 'cognac'}
+        self.auchan_dict = {}
+        super().__init__(AuchanProduct, 'auchan')
 
     def parse_data(self, json_data, category):
         """Parse JSON of category and return dictionary of goods from Auchan."""
@@ -122,16 +104,84 @@ class Auchan(Supermarket):
 
         json_api_url = 'https://auchan.zakaz.ua/api/query.json'
         data = {}
-        for category in auchan_dict:
-            requests_gen = (grequests.post(json_api_url, json=json_data) for json_data in auchan_dict[category])
+        for category in self.auchan_dict:
+            requests_gen = (grequests.post(json_api_url, json=json_data) for json_data in self.auchan_dict[category])
             response_list = grequests.map(requests_gen)
             for json_response in response_list:
                 catalog_data = self.parse_data(json_response.text, category)
                 data.update(catalog_data)
         return data
 
+    def generate_url(self):
+        api_url = 'https://auchan.zakaz.ua/api/query.json'
+        json_template = JSON_template.copy()
+        for category_name in self.auchan_categories:
+            json_template['request'][0]['args']['slugs'][0] = self.auchan_categories[category_name]
+            json_data = requests.post(api_url, json=json_template).text
+            products_count = \
+            json.loads(json_data)['responses'][0]['data']['items'][0][
+                                  'facets_base']['total']
+            pages_count = math.ceil(products_count / 50)
+            json_request_list = []
+            for page_num in range(1, int(pages_count + 1)):
+                json_template['request'][0]['offset'] = page_num
+                json_request_list.append(copy.deepcopy(json_template))
+
+            one_category_dict = {category_name: json_request_list}
+            self.auchan_dict.update(one_category_dict)
+
+
+class MegaMarket(Supermarket):
+    def __init__(self):
+        self.mm_categories = {'beer': '1090', 'vodka': '1050', 'wine': '1040',
+                              'champagne': '1110', 'cognac': '1070'}
+        self.mm_dict = {}
+        super().__init__(MMProduct, 'mm')
+
+    def parse_data(self, html_code, category):
+        """Parse HTML of category and return dictionary of goods from MegaMarket."""
+
+        soup = BeautifulSoup(html_code, 'lxml')
+        list_products_html_code = soup.find_all('div', class_='product')
+        data_dict = {}
+        for product in list_products_html_code:
+            product_code_and_name = product.find_all('a')[1]
+            product_code = product_code_and_name['href'].split('/')[3]
+            name = product_code_and_name.text
+            price = product.find('div', class_='price').text.replace(
+                ' ', '')[1:]  # del white spaces and '/n'
+            data_dict.update({product_code: {'name': name, 'price': price, 'category': category}})
+        return data_dict
+
+    def get_goods_dict(self):
+        """Request categories url and return dictionary of goods from MegaMarket."""
+
+        urls_list = self.mm_dict.values()
+        requests_gen = (grequests.get(url) for url in urls_list)
+        response_list = grequests.map(requests_gen)
+        data = {}
+        for x in range(len(response_list)):
+            html_code = response_list[x].text
+            category = list(self.mm_dict)[x]
+            catalog_data = self.parse_data(html_code, category)
+            data.update(catalog_data)
+        return data
+
+    def generate_url(self):
+        for x in self.mm_categories:
+            url_template = 'https://megamarket.ua/ua/catalogue/category/{0}?show=48000'
+            url = url_template.format(self.mm_categories[x])
+            self.mm_dict.update({x: url})
+
 
 class Novus(Supermarket):
+    def __init__(self):
+        self.novus_categories = {'beer': 'beer', 'vodka': 'vodka', 'wine': 'wine',
+                                 'champagne': 'champagne-sparkling-wine',
+                                 'cognac': 'cognac'}
+        self.novus_dict = {}
+        super().__init__(NovusProduct, 'novus')
+
     def parse_data(self, html_code, category):
         """Parse HTML of category and return dictionary of goods from Novus."""
 
@@ -157,10 +207,27 @@ class Novus(Supermarket):
         """Request categories url and return dictionary of goods from Novus."""
 
         data = {}
-        for category_name in novus_dict:
-            requests_gen = (grequests.get(url) for url in novus_dict[category_name])
+        for category_name in self.novus_dict:
+            requests_gen = (grequests.get(url) for url in self.novus_dict[category_name])
             response_list = grequests.map(requests_gen)
             for response in response_list:
                 catalog_data = self.parse_data(response.text, category_name)
                 data.update(catalog_data)
         return data
+
+    def generate_url(self):
+        url_template = 'https://novus.zakaz.ua/uk/{category}/?&page={page_num}'
+        for x in self.novus_categories:
+            url_first_page = url_template.format(category=self.novus_categories[x],
+                                                 page_num=1)
+            html_code = requests.get(url_first_page).text
+            soup = BeautifulSoup(html_code, 'lxml')
+            number_max_page = soup.find('div',
+                                        class_='pagination pagination-centered')
+            number_max_page = int(number_max_page.find_all('a')[-2].text)
+            urls = []
+            for y in range(1, number_max_page + 1):
+                page_url = url_template.format(category=self.novus_categories[x],
+                                               page_num=y)
+                urls.append(page_url)
+            self.novus_dict.update({x: urls})
