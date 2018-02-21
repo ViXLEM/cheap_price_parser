@@ -1,6 +1,21 @@
 import time
+import os
 
+from flask import Flask
 from parser import MegaMarket, Auchan, Novus
+
+app = Flask(__name__)
+
+
+@app.route("/")
+def index():
+    return "hello"
+
+
+@app.route("/update")
+def data_update():
+    main()
+    return "Succsess! was updated"
 
 
 def main():
@@ -8,19 +23,20 @@ def main():
 
     auchan = Auchan()
     auchan.update()
-    auchan.get_metadata()
+    print(auchan.get_metadata())
 
     mm = MegaMarket()
     mm.update()
-    mm.get_metadata()
+    print(mm.get_metadata())
 
     novus = Novus()
     novus.update()
-    novus.get_metadata()
+    print(novus.get_metadata())
 
     second = time.time()
     print(round(second-first, 3))
 
 
 if __name__ == '__main__':
-    main()
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host='0.0.0.0', port=port)

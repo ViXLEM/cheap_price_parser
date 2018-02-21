@@ -2,8 +2,9 @@ from sqlalchemy import Column, String, Float, Boolean, ForeignKey
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine
+from config import DATABASE_URL
 
-db_string = 'postgresql://bot_admin:bot_pass@localhost:5432/bot_prod'
+db_string = DATABASE_URL
 
 Base = declarative_base()
 

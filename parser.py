@@ -89,7 +89,7 @@ class Supermarket():
 
     def get_metadata(self):
         """Return dict with time and goods count values."""
-        print(self.metadata)
+
         return self.metadata
 
 
