@@ -1,21 +1,20 @@
-import grequests
 import time
 import os
-import requests
 
 from flask import Flask
 from parser import MegaMarket, Auchan, Novus
-from config import BOT_API_URL
+from config import BOT_API_URL, SECRET_URL_FOR_UPDATE
+from requests import post
 
 app = Flask(__name__)
 
 
 @app.route("/")
 def index():
-    return "hello"
+    return "All ok!\nHello world"
 
 
-@app.route("/update")
+@app.route(SECRET_URL_FOR_UPDATE)
 def data_update():
     first = time.time()
 
@@ -33,13 +32,13 @@ def data_update():
     send_to_bot(novus.get_metadata())
 
     second = time.time()
-    send_to_bot(round(second - first, 3))
+    send_to_bot({'full_time': round(second - first, 3)})
     return "Succsess! was updated"
 
 
 def send_to_bot(data_dict):
     print(data_dict)
-    requests.post(BOT_API_URL, data=data_dict)
+    post(BOT_API_URL, data=data_dict)
 
 
 if __name__ == '__main__':
